@@ -15,16 +15,6 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
-    // Here you would typically:
-    // 1. Validate the user input
-    // 2. Check if user already exists
-    // 3. Hash the password
-    // 4. Save the user to database
-    // For now, we'll just return success
-    
-    return {
-      success: true,
-      message: 'User registered successfully'
-    };
+    return this.authService.register(registerDto);
   }
 } 

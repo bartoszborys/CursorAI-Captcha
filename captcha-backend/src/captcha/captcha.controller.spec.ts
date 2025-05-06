@@ -57,7 +57,7 @@ describe('CaptchaController', () => {
         message: 'CAPTCHA verified successfully',
       };
 
-      mockCaptchaService.verifyCaptcha.mockResolvedValue(true);
+      mockCaptchaService.verifyCaptcha.mockResolvedValue({success: true});
 
       const result = await controller.verifyCaptcha(body);
 
@@ -78,7 +78,7 @@ describe('CaptchaController', () => {
         message: 'Invalid CAPTCHA solution',
       };
 
-      mockCaptchaService.verifyCaptcha.mockResolvedValue(false);
+      mockCaptchaService.verifyCaptcha.mockResolvedValue({success: false});
 
       const result = await controller.verifyCaptcha(body);
 

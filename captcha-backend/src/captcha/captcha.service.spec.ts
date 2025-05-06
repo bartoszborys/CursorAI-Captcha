@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CaptchaService } from './captcha.service';
 import { RedisService } from '../redis/redis.service';
-import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 describe('CaptchaService', () => {
   let service: CaptchaService;
@@ -13,6 +13,17 @@ describe('CaptchaService', () => {
     del: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn().mockImplementation((key: string) => {
+      switch (key) {
+        case 'CAPTCHA_EXPIRATION':
+          return 300;
+        default:
+          return null;
+      }
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -20,6 +31,10 @@ describe('CaptchaService', () => {
         {
           provide: RedisService,
           useValue: mockRedisService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -35,9 +50,9 @@ describe('CaptchaService', () => {
   describe('generateCaptcha', () => {
     it('should generate a new captcha', async () => {
       const result = await service.generateCaptcha();
-
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('image');
+      expect(result).toHaveProperty('expiresAt');
       expect(mockRedisService.set).toHaveBeenCalled();
     });
   });
@@ -46,55 +61,61 @@ describe('CaptchaService', () => {
     it('should verify correct solution', async () => {
       const captchaId = 'test-id';
       const userInput = 'test-input';
-      const storedCaptcha = 'test-input';
+      const expiresAt = Date.now() + 300000; // 5 minutes from now
 
-      mockRedisService.get.mockResolvedValue(storedCaptcha);
+      const captchaData = {
+        solution: userInput,
+        expiresAt: expiresAt,
+      };
+
+      mockRedisService.get.mockResolvedValue(JSON.stringify(captchaData));
 
       const result = await service.verifyCaptcha(captchaId, userInput);
-
-      expect(result).toBe(true);
+      expect(result).toEqual({ success: true });
       expect(mockRedisService.del).toHaveBeenCalledWith(`captcha:${captchaId}`);
     });
 
     it('should reject incorrect solution', async () => {
       const captchaId = 'test-id';
       const userInput = 'wrong-input';
-      const storedCaptcha = 'test-input';
+      const expiresAt = Date.now() + 300000; // 5 minutes from now
 
-      mockRedisService.get.mockResolvedValue(storedCaptcha);
+      const captchaData = {
+        solution: 'correct-input',
+        expiresAt: expiresAt,
+      };
+
+      mockRedisService.get.mockResolvedValue(JSON.stringify(captchaData));
 
       const result = await service.verifyCaptcha(captchaId, userInput);
+      expect(result).toEqual({ success: false });
+    });
 
-      expect(result).toBe(false);
+    it('should reject expired captcha', async () => {
+      const captchaId = 'test-id';
+      const userInput = 'test-input';
+      const expiresAt = Date.now() - 1000; // expired 1 second ago
+
+      const captchaData = {
+        solution: userInput,
+        expiresAt: expiresAt,
+      };
+
+      mockRedisService.get.mockResolvedValue(JSON.stringify(captchaData));
+
+      const result = await service.verifyCaptcha(captchaId, userInput);
+      expect(result).toEqual({ success: false });
       expect(mockRedisService.del).toHaveBeenCalledWith(`captcha:${captchaId}`);
     });
 
-    it('should throw error for invalid captcha id', async () => {
-      const captchaId = 'non-existent-id';
+    it('should reject non-existent captcha', async () => {
+      const captchaId = 'non-existent';
       const userInput = 'test-input';
 
       mockRedisService.get.mockResolvedValue(null);
 
-      await expect(service.verifyCaptcha(captchaId, userInput)).rejects.toThrow(
-        BadRequestException,
-      );
-      expect(mockRedisService.del).not.toHaveBeenCalled();
-    });
-
-    it('should throw error for expired captcha', async () => {
-      const captchaId = 'expired-id';
-      const userInput = 'test-input';
-      const storedCaptcha = {
-        text: 'test-input',
-        expiresAt: Date.now() - 1000, // expired 1 second ago
-      };
-
-      mockRedisService.get.mockResolvedValue(JSON.stringify(storedCaptcha));
-
-      await expect(service.verifyCaptcha(captchaId, userInput)).rejects.toThrow(
-        BadRequestException,
-      );
-      expect(mockRedisService.del).toHaveBeenCalledWith(`captcha:${captchaId}`);
+      const result = await service.verifyCaptcha(captchaId, userInput);
+      expect(result).toEqual({ success: false });
     });
   });
 });

@@ -36,14 +36,14 @@ export class CaptchaController {
   async verifyCaptcha(
     @Body() verifyCaptchaDto: VerifyCaptchaDto,
   ): Promise<VerifyCaptchaResponseDto> {
-    const isValid = await this.captchaService.verifyCaptcha(
+    const {success} = await this.captchaService.verifyCaptcha(
       verifyCaptchaDto.captchaId,
       verifyCaptchaDto.userInput,
     );
 
     return {
-      success: isValid,
-      message: isValid
+      success,
+      message: success
         ? 'CAPTCHA verified successfully'
         : 'Invalid CAPTCHA solution',
     };
