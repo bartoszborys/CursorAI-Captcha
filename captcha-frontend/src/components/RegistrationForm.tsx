@@ -14,7 +14,7 @@ interface RegistrationData {
   email: string
   password: string
   captchaId: string
-  captchaInput: string
+  userInput: string
 }
 
 interface RegistrationResponse {
@@ -22,13 +22,21 @@ interface RegistrationResponse {
   message: string
 }
 
+interface FormData {
+  username: string
+  email: string
+  password: string
+  confirmPassword: string
+  userInput: string
+}
+
 export default function RegistrationForm() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     username: '',
     email: '',
     password: '',
     confirmPassword: '',
-    captchaInput: '',
+    userInput: '',
   })
   const [error, setError] = useState<string | null>(null)
 
@@ -40,12 +48,22 @@ export default function RegistrationForm() {
     },
   })
 
+  const verifyCaptchaMutation = useMutation({
+    mutationFn: async ({ captchaId, userInput }: { captchaId: string; userInput: string }) => {
+      const response = await axios.post<{ valid: boolean }>(`${API_URL}/captcha/verify`, {
+        captchaId,
+        userInput
+      })
+      return response.data
+    }
+  })
+
   const registrationMutation = useMutation({
     mutationFn: async (data: RegistrationData) => {
       const response = await axios.post<RegistrationResponse>(`${API_URL}/auth/register`, data)
       return response.data
     },
-    onSuccess: (data) => {
+    onSuccess: (data: RegistrationResponse) => {
       if (data.success) {
         // Reset form and show success message
         setFormData({
@@ -53,7 +71,7 @@ export default function RegistrationForm() {
           email: '',
           password: '',
           confirmPassword: '',
-          captchaInput: '',
+          userInput: '',
         })
         setError(null)
         refreshCaptcha()
@@ -62,13 +80,17 @@ export default function RegistrationForm() {
         refreshCaptcha()
       }
     },
-    onError: (error) => {
-      setError('Registration failed. Please try again.')
+    onError: (error: unknown) => {
+      if (axios.isAxiosError(error)) {
+        setError(error.response?.data?.message || 'Registration failed')
+      } else {
+        setError('Registration failed. Please try again.')
+      }
       refreshCaptcha()
     },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
 
@@ -84,27 +106,50 @@ export default function RegistrationForm() {
       return
     }
 
-    if (captcha?.id) {
+    if (!captcha?.id) {
+      setError('Please wait for CAPTCHA to load')
+      return
+    }
+
+    try {
+      const verifyResult = await verifyCaptchaMutation.mutateAsync({
+        captchaId: captcha.id,
+        userInput: formData.userInput
+      })
+
+      if (!verifyResult.valid) {
+        setError('Invalid CAPTCHA. Please try again.')
+        refreshCaptcha()
+        return
+      }
+
       registrationMutation.mutate({
         username: formData.username,
         email: formData.email,
         password: formData.password,
         captchaId: captcha.id,
-        captchaInput: formData.captchaInput,
+        userInput: formData.userInput,
       })
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        setError(error.response?.data?.message || 'CAPTCHA verification failed')
+      } else {
+        setError('CAPTCHA verification failed. Please try again.')
+      }
+      refreshCaptcha()
     }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({
+    setFormData((prev: FormData) => ({
       ...prev,
       [name]: value
     }))
   }
 
   const handleRefreshCaptcha = () => {
-    setFormData(prev => ({ ...prev, captchaInput: '' }))
+    setFormData((prev: FormData) => ({ ...prev, userInput: '' }))
     refreshCaptcha()
   }
 
@@ -192,8 +237,8 @@ export default function RegistrationForm() {
             </div>
             <input
               type="text"
-              name="captchaInput"
-              value={formData.captchaInput}
+              name="userInput"
+              value={formData.userInput}
               onChange={handleChange}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               placeholder="Enter CAPTCHA text"
@@ -210,10 +255,10 @@ export default function RegistrationForm() {
 
         <button
           type="submit"
-          disabled={registrationMutation.isPending}
+          disabled={registrationMutation.isPending || verifyCaptchaMutation.isPending}
           className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
         >
-          {registrationMutation.isPending ? 'Creating Account...' : 'Create Account'}
+          {registrationMutation.isPending || verifyCaptchaMutation.isPending ? 'Processing...' : 'Create Account'}
         </button>
       </form>
     </div>
