@@ -1,7 +1,6 @@
-import { Controller, Post, Body, Get, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, Get, HttpCode, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CaptchaService } from './captcha.service';
-import { VerifyCaptchaDto } from './dto/verify-captcha.dto';
 import { CaptchaResponseDto } from './dto/captcha-response.dto';
 import { VerifyCaptchaResponseDto } from './dto/verify-captcha-response.dto';
 
@@ -34,11 +33,12 @@ export class CaptchaController {
     description: 'Nieprawidłowe dane wejściowe lub wygasła CAPTCHA',
   })
   async verifyCaptcha(
-    @Body() verifyCaptchaDto: VerifyCaptchaDto,
+    @Body('captchaId') captchaId: string,
+    @Body('userInput') userInput: string,
   ): Promise<VerifyCaptchaResponseDto> {
     const {success} = await this.captchaService.verifyCaptcha(
-      verifyCaptchaDto.captchaId,
-      verifyCaptchaDto.userInput,
+      captchaId,
+      userInput,
     );
 
     return {
