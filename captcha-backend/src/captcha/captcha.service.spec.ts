@@ -16,7 +16,7 @@ describe('CaptchaService', () => {
   const mockConfigService = {
     get: jest.fn().mockImplementation((key: string) => {
       switch (key) {
-        case 'CAPTCHA_EXPIRATION':
+        case 'captcha.expiration':
           return 300;
         default:
           return null;

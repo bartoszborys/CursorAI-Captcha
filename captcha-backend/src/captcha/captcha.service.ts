@@ -24,7 +24,8 @@ export class CaptchaService {
     });
 
     const id = uuidv4();
-    const expiresAt = Date.now() + this.configService.get('CAPTCHA_EXPIRATION') * 1000;
+    const expirationTime = this.configService.get('captcha.expiration');
+    const expiresAt = Date.now() + expirationTime * 1000;
 
     const captchaData: CaptchaData = {
       solution: captcha.text,
@@ -34,7 +35,7 @@ export class CaptchaService {
     await this.redisService.set(
       `captcha:${id}`,
       JSON.stringify(captchaData),
-      this.configService.get('CAPTCHA_EXPIRATION'),
+      expirationTime,
     );
 
     return {

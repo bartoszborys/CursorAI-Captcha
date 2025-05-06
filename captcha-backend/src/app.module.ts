@@ -5,11 +5,13 @@ import { AppService } from './app.service';
 import { CaptchaModule } from './captcha/captcha.module';
 import { RedisConfigModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
+import captchaConfig from './config/captcha.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [captchaConfig],
     }),
     RedisConfigModule,
     CaptchaModule,
