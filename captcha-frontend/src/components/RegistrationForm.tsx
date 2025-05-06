@@ -50,7 +50,7 @@ export default function RegistrationForm() {
 
   const verifyCaptchaMutation = useMutation({
     mutationFn: async ({ captchaId, userInput }: { captchaId: string; userInput: string }) => {
-      const response = await axios.post<{ valid: boolean }>(`${API_URL}/captcha/verify`, {
+      const response = await axios.post<{ success: boolean }>(`${API_URL}/captcha/verify`, {
         captchaId,
         userInput
       })
@@ -94,13 +94,11 @@ export default function RegistrationForm() {
     e.preventDefault()
     setError(null)
 
-    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
       return
     }
 
-    // Validate password strength
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters long')
       return
@@ -112,29 +110,34 @@ export default function RegistrationForm() {
     }
 
     try {
+      // First verify CAPTCHA
       const verifyResult = await verifyCaptchaMutation.mutateAsync({
         captchaId: captcha.id,
         userInput: formData.userInput
       })
 
-      if (!verifyResult.valid) {
+      if (!verifyResult.success) {
         setError('Invalid CAPTCHA. Please try again.')
         refreshCaptcha()
         return
       }
 
-      registrationMutation.mutate({
+      // If CAPTCHA is valid, proceed with registration
+      const registrationData = {
         username: formData.username,
         email: formData.email,
         password: formData.password,
         captchaId: captcha.id,
-        userInput: formData.userInput,
-      })
+        userInput: formData.userInput
+      }
+
+      await registrationMutation.mutateAsync(registrationData)
+
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        setError(error.response?.data?.message || 'CAPTCHA verification failed')
+        setError(error.response?.data?.message || 'Registration failed')
       } else {
-        setError('CAPTCHA verification failed. Please try again.')
+        setError('Registration failed. Please try again.')
       }
       refreshCaptcha()
     }
