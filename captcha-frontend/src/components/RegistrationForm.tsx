@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 
@@ -7,6 +7,7 @@ const API_URL = '/api'
 interface CaptchaResponse {
   id: string
   image: string
+  expiresAt: string
 }
 
 interface RegistrationData {
@@ -39,6 +40,14 @@ export default function RegistrationForm() {
     userInput: '',
   })
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [timeLeft, setTimeLeft] = useState<number>(0)
+
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+  }
 
   const { data: captcha, refetch: refreshCaptcha } = useQuery<CaptchaResponse>({
     queryKey: ['captcha'],
@@ -47,6 +56,26 @@ export default function RegistrationForm() {
       return response.json()
     },
   })
+
+  useEffect(() => {
+    if (!captcha?.expiresAt) return
+
+    const updateTimer = () => {
+      const now = new Date().getTime()
+      const expiresAt = new Date(captcha.expiresAt).getTime()
+      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000))
+      setTimeLeft(remaining)
+
+      if (remaining === 0) {
+        refreshCaptcha()
+      }
+    }
+
+    updateTimer()
+    const timer = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(timer)
+  }, [captcha?.expiresAt, refreshCaptcha])
 
   const verifyCaptchaMutation = useMutation({
     mutationFn: async ({ captchaId, userInput }: { captchaId: string; userInput: string }) => {
@@ -65,7 +94,6 @@ export default function RegistrationForm() {
     },
     onSuccess: (data: RegistrationResponse) => {
       if (data.success) {
-        // Reset form and show success message
         setFormData({
           username: '',
           email: '',
@@ -74,6 +102,7 @@ export default function RegistrationForm() {
           userInput: '',
         })
         setError(null)
+        setSuccess('Registration successful! You can now log in.')
         refreshCaptcha()
       } else {
         setError(data.message)
@@ -93,6 +122,7 @@ export default function RegistrationForm() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
@@ -110,7 +140,6 @@ export default function RegistrationForm() {
     }
 
     try {
-      // First verify CAPTCHA
       const verifyResult = await verifyCaptchaMutation.mutateAsync({
         captchaId: captcha.id,
         userInput: formData.userInput
@@ -122,7 +151,6 @@ export default function RegistrationForm() {
         return
       }
 
-      // If CAPTCHA is valid, proceed with registration
       const registrationData = {
         username: formData.username,
         email: formData.email,
@@ -222,8 +250,11 @@ export default function RegistrationForm() {
 
         {captcha?.image && (
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              CAPTCHA Verification
+            <label className="block text-sm font-medium text-gray-700 flex gap-1">
+              <span>
+                CAPTCHA Verification
+              </span>
+              <span>{formatTime(timeLeft)}</span>
             </label>
             <div className="flex items-center space-x-4">
               <div
@@ -238,21 +269,29 @@ export default function RegistrationForm() {
                 Refresh
               </button>
             </div>
-            <input
-              type="text"
-              name="userInput"
-              value={formData.userInput}
-              onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              placeholder="Enter CAPTCHA text"
-              required
-            />
+            <div className="flex justify-between items-center">
+              <input
+                type="text"
+                name="userInput"
+                value={formData.userInput}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="Enter CAPTCHA text"
+                required
+              />
+            </div>
           </div>
         )}
 
         {error && (
           <div className="text-red-600 text-sm">
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="text-green-600 text-sm">
+            {success}
           </div>
         )}
 

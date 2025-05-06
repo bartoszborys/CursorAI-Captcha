@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CaptchaModule } from './captcha/captcha.module';
 import { RedisConfigModule } from './redis/redis.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { RedisConfigModule } from './redis/redis.module';
     }),
     RedisConfigModule,
     CaptchaModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
