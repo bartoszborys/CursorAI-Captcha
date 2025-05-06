@@ -10,7 +10,7 @@ interface CaptchaData {
 
 @Injectable()
 export class CaptchaService {
-  constructor(private readonly redisService: RedisService) { }
+  constructor(private readonly redisService: RedisService) {}
 
   async generateCaptcha() {
     const captcha = svgCaptcha.create({
